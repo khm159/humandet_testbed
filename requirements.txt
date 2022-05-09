@@ -12,3 +12,4 @@ ninja
 tabulate
 tensorboard
 pycocotools>=2.0.2
+tensorflow-gpu==1.15

@@ -12,15 +12,17 @@ class Model(ObjDetector_base):
 
     Created by H. M. Kim (22.05.09)
     """
-    def __init__(self,args,**kwargs):
+    def __init__(self, args, **kwargs):
         super().__init__(args)
+
         self._show_config = args.show_detector_config
         self._show_model_layers = args.show_detector_model_layers
-        self._build_model(**kwargs) 
         self._augmentation = ValTransform(legacy=False) 
-        # True if you use legacy checkpoint. not support in this version.
     
-    def _update_metadat(self,exp):
+    def upate_config(self,configdict):
+        self.config = configdict
+    
+    def _update_metadata(self,exp):
         """update metadata from yolox exp config file"""
         self.num_classes = exp.num_classes
         self.confthre = exp.test_conf
@@ -29,13 +31,13 @@ class Model(ObjDetector_base):
         print("    - bbox conf threshold : {}".format(self.confthre))
         print("    - bbox nms threshold : {}".format(self.nmsthre))
         print("    - bbox test size : {}".format(self.test_size))
-    
-    def _build_model(self,**kwargs):
+  
+    def build_model(self,**kwargs):
         """building yolox model from exp config file"""
-        super()._build_model(**kwargs)
+        super().build_model(**kwargs)
         from model.detector.YOLOX.yolox.exp.build import get_exp
         exp = get_exp(self._load_config())
-        self._update_metadat(exp)
+        self._update_metadata(exp)
         if self._show_config : print(exp)
         self.model = exp.get_model()
         if self._show_model_layers : print(self.model)
@@ -53,7 +55,11 @@ class Model(ObjDetector_base):
 
     def _load_config(self):
         """loading config file from model name"""
-        return 'model/detector/yolox/exps/default/'+\
+        if self.args.exp_config is not None:
+            return 'model/detector/yolox/exps/default/'+\
+            self.configdict['model']
+        else:
+            return 'model/detector/yolox/exps/default/'+\
             self.args.detector_model
     
     def change_confthre(self, confthre):
