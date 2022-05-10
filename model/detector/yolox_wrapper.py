@@ -3,6 +3,8 @@ from model.metaclass import ObjDetector_base
 from model.detector.YOLOX.yolox.utils import postprocess, vis
 from model.detector.YOLOX.yolox.data.data_augment import ValTransform
 from model.detector.YOLOX.yolox.data.datasets import COCO_CLASSES
+import cv2
+import numpy as np
 
 class Model(ObjDetector_base):
     """
@@ -19,6 +21,10 @@ class Model(ObjDetector_base):
         self._build_model(**kwargs) 
         self._augmentation = ValTransform(legacy=False) 
         # True if you use legacy checkpoint. not support in this version.
+        self.compute_color_for_labels = lambda x: [
+            int((p * (x**2 - x + 1)) % 255) for p in self.palette
+        ]  # noqa
+        self.palette = (2**11 - 1, 2**15 - 1, 2**20 - 1)
     
     def _update_metadat(self,exp):
         """update metadata from yolox exp config file"""
@@ -26,9 +32,6 @@ class Model(ObjDetector_base):
         self.confthre = exp.test_conf
         self.nmsthre = exp.nmsthre
         self.test_size = exp.test_size
-        print("    - bbox conf threshold : {}".format(self.confthre))
-        print("    - bbox nms threshold : {}".format(self.nmsthre))
-        print("    - bbox test size : {}".format(self.test_size))
     
     def _build_model(self,**kwargs):
         """building yolox model from exp config file"""
@@ -66,14 +69,14 @@ class Model(ObjDetector_base):
 
     def _preprocess(self, img):
         """yolox pre-process code for images"""
-        img_info = {"id": 0}
+        self.img_info = {"id": 0}
         height, width = img.shape[:2]
-        img_info["height"] = height
-        img_info["width"] = width
-        img_info["raw_img"] = img
+        self.img_info["height"] = height
+        self.img_info["width"] = width
+        self.img_info["raw_img"] = img
 
         ratio = min(self.test_size[0] / img.shape[0], self.test_size[1] / img.shape[1])
-        img_info["ratio"] = ratio
+        self.img_info["ratio"] = ratio
 
         img, _ = self._augmentation(img, None, self.test_size)
         img = torch.from_numpy(img).unsqueeze(0)
@@ -81,29 +84,62 @@ class Model(ObjDetector_base):
         img = img.to(self.device)
         if self.fp16:
             img = img.half()  # to FP16
-        return img, img_info
+        return img
     
-    def visual(self, output, img_info, cls_conf=0.35):
-        ratio = img_info["ratio"]
-        img = img_info["raw_img"]
-        if output is None:
-            return img
-        output = output.cpu()
-        bboxes = output[:, 0:4]
+    def rescale_bbox(self, bbox):       
+        
+        box_num = bbox.shape[0]
+        ratio = torch.tensor([self.img_info['ratio']]*box_num).to(self.device)
+        print(ratio.shape, bbox[:,0].shape)
+        bbox[:, 0] /= ratio
+        bbox[:, 1] /= ratio
+        bbox[:, 2] /= ratio
+        bbox[:, 3] /= ratio
+        return bbox
 
-        # preprocessing: resize
-        bboxes /= ratio
+    def draw_bbox(self,img,bboxes,identities=None,offset=(0, 0)):
+        """
+        drawing bbox on image 
+        args :
+            img : cv2 array (H,W,3)
+            bboxes : list or array of the bbox_xyxy [(x1,y1,x2,y2),...]
+            identities : list or array of the identities
+            offset : offset for bbox
+        """
+        # Drwa Boxes
+        for i, bbox in enumerate(bboxes):
+            # Every IDs
+            x1, y1, x2, y2 = [int(i) for i in bbox]
+            x1 += offset[0]
+            x2 += offset[0]
+            y1 += offset[1]
+            y2 += offset[1]
+           
+            # Draw ID text, Bbox
+            if len(identities) == 0 and len(bboxes) !=0:
+                label = "unknonw"
+                color = self.compute_color_for_labels(0)
+            else:
+                id = int(identities[i]) if len(identities) != 0 else 0
+                # Bbox ID 색상 계산
+                color = self.compute_color_for_labels(id)
+                # Bbox 텍스트 생성
+                label = '{}'.format(id)
 
-        cls = output[:, 6]
-        scores = output[:, 4] * output[:, 5]
+            # 화면 그리기
+            t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
+            cv2.rectangle(img, (x1, y1),
+                (x1 + t_size[0] + 3, y1 + t_size[1] + 4), color,-1)
+            cv2.putText(img, label, (x1, y1 + t_size[1] + 4),
+            cv2.FONT_HERSHEY_PLAIN, 3, [196, 196, 196], 1)
 
-        vis_res = vis(img, bboxes, scores, cls, cls_conf, COCO_CLASSES)
-        return vis_res
+        return img
 
     def run(self,img):
         """inference code for images"""
         ## batch-inference will be updated soon.
-        img, img_info = self._preprocess(img)
+        img = self._preprocess(img)
         with torch.no_grad():
             outputs = self.model(img)
             outputs = postprocess(
@@ -114,7 +150,8 @@ class Model(ObjDetector_base):
                 class_agnostic=True
             )
             ## leave only target class
-            if outputs[0] is not None: ## TODO: Make Efficient.
+            if outputs[0] is not None and len(outputs) != 0:
+                ## TODO: Make Efficient.
                 if self.args.target_classes != None:
                     cls_name = outputs[0][:, 6]
                     remain_inds = []
@@ -122,4 +159,8 @@ class Model(ObjDetector_base):
                         if elem.item() in self.args.target_classes:
                             remain_inds.append(i)
                     outputs[0] = outputs[0][remain_inds]
-        return outputs, img_info
+            else:
+                return [torch.zeros([0,7]).to(self.device)]
+        #rescale bbox
+        outputs[0][:,0:4] = self.rescale_bbox(outputs[0][:,0:4])
+        return outputs

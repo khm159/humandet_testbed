@@ -1,5 +1,6 @@
 import cv2
 from abc import ABC, abstractmethod
+import numpy as np
 
 class ObjDetector_base(ABC):
     """
@@ -34,6 +35,15 @@ class ObjDetector_base(ABC):
     @abstractmethod
     def run(self, input):
         pass
+    
+    @abstractmethod
+    def rescale_bbox(self, bbox, info_dict):
+        """
+        info dict has to keys:
+            'img', 'ori_img'
+        default : bbox_xyxy input
+        """
+        pass
 
 class ObjTracker_base(ABC):
     """
@@ -48,15 +58,20 @@ class ObjTracker_base(ABC):
     """
     def __init__(self,args,**kwargs):
         self.args = args
+        self.min_confidence = self.args.tracker_min_confidence
+        
     
     @abstractmethod
     def _build_model(self,**kwargs):
-        self.tracker_type = self.args.tracker
-        print("- tracker_type : ", tracker_type)
+        pass
     
     @abstractmethod
-    def run(self):
+    def _update(self):
         pass
+
+    def __call__(self, *args, **kwargs):
+        return self._update(*args, **kwargs)
+
 
 class MetaVideoPipe_base(ABC):
     """
@@ -75,11 +90,11 @@ class MetaVideoPipe_base(ABC):
         detector_class = getattr(detector_wrapper, 'Model')
         self.detector = detector_class(self.args, **kwargs)
 
-        #tracker_wrapper = 'model.tracker.'+self.args.tracker+'_wrapper'
-        #print("- import tracker : ", tracker_wrapper)
-        #tracker_wrapper = importlib.import_module(tracker_wrapper)
-        #tracker_class = getattr(tracker_wrapper, 'Model')
-        #self.tracker = tracker_class(self.args, **kwargs)
+        tracker_wrapper = 'model.tracker.'+self.args.tracker+'_wrapper'
+        print("- import tracker : ", tracker_wrapper)
+        tracker_wrapper = importlib.import_module(tracker_wrapper)
+        tracker_class = getattr(tracker_wrapper, 'Model')
+        self.tracker = tracker_class(self.args, **kwargs)
 
     @abstractmethod
     def __call__(self, input):

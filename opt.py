@@ -5,7 +5,15 @@ parser = argparse.ArgumentParser()
 
 # === tracker configures ===
 parser.add_argument('--tracker',type=str, default='deepsort',choices=['deepsort','sort'])
-parser.add_argument('--tracker_model' ,type=str, default='[mobilenetv2_1.0]_[market1501]')
+parser.add_argument('--extractor',type=str, default='default',choices=['default','osnet'])
+parser.add_argument('--exctractor_ckpt' ,type=str, default='pretraied_models/extractor/ckpt.t7')
+
+parser.add_argument('--tracker_max_dist' ,type=float, default=0.2)
+parser.add_argument('--tracker_min_confidence' ,type=float, default=0.3)
+parser.add_argument('--tracker_budget' ,type=float, default=100)
+parser.add_argument('--tracker_max_iou_distance' ,type=float, default=0.7)
+parser.add_argument('--tracker_max_age' ,type=float, default=70)
+parser.add_argument('--tracker_n_init' ,type=float, default=3)
 
 # === detector configures 
 parser.add_argument('--detector',type=str, default='yolox',choices=['yolox','yolor','yolov5'])
