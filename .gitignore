@@ -1,5 +1,7 @@
 *.pyc
 *.pth
 *.pt
+*.tar
+*.t7
 *.mp4
 *.avi
