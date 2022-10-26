@@ -1,8 +1,8 @@
 import torch
 from model.metaclass import ObjDetector_base
-from model.detector.YOLOX.yolox.utils import postprocess, vis
-from model.detector.YOLOX.yolox.data.data_augment import ValTransform
-from model.detector.YOLOX.yolox.data.datasets import COCO_CLASSES
+from yolox.utils import postprocess, vis
+from yolox.data.data_augment import ValTransform
+from yolox.data.datasets import COCO_CLASSES
 import cv2
 import numpy as np
 

@@ -1,4 +1,3 @@
+conda install -c conda-forge protobuf numpy -y
 pip install -r requirements.txt
-cd model/detector/
-git clone --branch 0.3.0 https://github.com/Megvii-BaseDetection/YOLOX
-cd ../../
+pip install yolox==0.3.0

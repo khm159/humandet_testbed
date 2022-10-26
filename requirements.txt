@@ -1,4 +1,7 @@
+cython
 numpy
+cmake
+onnx
 torch>=1.7
 opencv_python
 tabulate
@@ -12,3 +15,4 @@ ninja
 tabulate
 tensorboard
 pycocotools>=2.0.2
+yolox==0.3.0
